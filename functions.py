@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 from PIL.ExifTags import TAGS
 
 from config import Config, PHOTO_PATTERNS
@@ -168,7 +168,7 @@ def calculate_text_position(
 
 
 def add_watermark(image_path: str, output_path: str, config: Config) -> None:
-    img = Image.open(image_path).convert("RGB")
+    img = ImageOps.exif_transpose(Image.open(image_path)).convert("RGB")
 
     dynamic_font_size = calculate_font_size(img.width, img.height, config.font_size)
 
@@ -230,10 +230,11 @@ def folder_name_for_group(photos: List[Path]) -> str:
 # ── Batch processing ───────────────────────────────────────────────────────────
 
 def collect_photos(directory: Path) -> List[Path]:
-    photos: List[Path] = []
+    seen: set[Path] = set()
     for p in PHOTO_PATTERNS:
-        photos.extend(directory.glob(p))
-    return photos
+        for photo in directory.glob(p):
+            seen.add(photo.resolve())
+    return list(seen)
 
 
 def _out_name(photo: Path) -> str:
