@@ -1,0 +1,15 @@
+# Claude
+CLAUDE.md
+.claude/
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.mypy_cache/
+
+# Project I/O (don't commit photos)
+input/
+output/
