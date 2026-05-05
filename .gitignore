@@ -13,3 +13,12 @@ __pycache__/
 # Project I/O (don't commit photos)
 input/
 output/
+
+# Web server temp sessions
+tmp/
+
+# Virtual environment
+.venv/
+
+# Env vars (if someone usa un .env file)
+.env
