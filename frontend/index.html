@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PhotoOrderer</title>
+  <script src="https://cdn.jsdelivr.net/npm/exifr@7/dist/lite.umd.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -368,15 +369,32 @@
 
     // ── Process ─────────────────────────────────────────────────────────────────
 
+    function toExifDate(d) {
+      const p = (n) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}:${p(d.getMonth()+1)}:${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+    }
+
     processBtn.addEventListener("click", async () => {
       if (!selectedFiles.length) return;
       resetResults();
       processBtn.disabled = true;
       errorBox.classList.add("hidden");
 
+      // Read EXIF dates client-side — mobile browsers strip EXIF during upload
+      const dates = {};
+      await Promise.all(selectedFiles.map(async (f) => {
+        try {
+          const result = await exifr.parse(f, ["DateTimeOriginal"]);
+          if (result && result.DateTimeOriginal) {
+            dates[f.name] = toExifDate(result.DateTimeOriginal);
+          }
+        } catch { /* no EXIF — backend will fall back to filename/mtime */ }
+      }));
+
       // 1. Upload
       const form = new FormData();
       selectedFiles.forEach((f) => form.append("photos", f, f.name));
+      form.append("dates", JSON.stringify(dates));
 
       let uploadRes;
       try {

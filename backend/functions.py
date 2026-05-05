@@ -6,7 +6,7 @@ import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps  # type: ignore[import-untyped]
 
@@ -51,7 +51,16 @@ def _date_from_filename(image_path: str) -> Optional[datetime]:
     return None
 
 
-def get_photo_date(image_path: str) -> datetime:
+def get_photo_date(image_path: str, dates_override: Optional[Dict[str, str]] = None) -> datetime:
+    # 0. Client-supplied date (highest priority — mobile browsers strip EXIF on upload)
+    if dates_override:
+        filename = Path(image_path).name
+        raw = dates_override.get(filename)
+        if raw:
+            dt = _parse_exif_date(raw)
+            if dt:
+                return dt
+
     try:
         img = Image.open(image_path)
 
@@ -225,12 +234,12 @@ def calculate_text_position(
     return (margin, img_h - text_h - margin)
 
 
-def add_watermark(image_path: str, output_path: str, config: Config) -> None:
+def add_watermark(image_path: str, output_path: str, config: Config, dates_override: Optional[Dict[str, str]] = None) -> None:
     img = ImageOps.exif_transpose(Image.open(image_path)).convert("RGB")
 
     dynamic_font_size = calculate_font_size(img.width, img.height, config.font_size)
 
-    photo_date = get_photo_date(image_path)
+    photo_date = get_photo_date(image_path, dates_override)
     date_text = photo_date.strftime(config.date_format)
 
     draw = ImageDraw.Draw(img)
@@ -256,14 +265,14 @@ def add_watermark(image_path: str, output_path: str, config: Config) -> None:
 
 # ── Grouping ───────────────────────────────────────────────────────────────────
 
-def group_photos_by_time(photos: List[Path], config: Config) -> List[List[Path]]:
+def group_photos_by_time(photos: List[Path], config: Config, dates_override: Optional[Dict[str, str]] = None) -> List[List[Path]]:
     if not photos:
         return []
 
     max_gap_seconds = config.max_gap_minutes * 60
 
     dated = sorted(
-        ((get_photo_date(str(p)), p) for p in photos),
+        ((get_photo_date(str(p), dates_override), p) for p in photos),
         key=lambda x: x[0],
     )
 
@@ -280,8 +289,8 @@ def group_photos_by_time(photos: List[Path], config: Config) -> List[List[Path]]
     return groups
 
 
-def folder_name_for_group(photos: List[Path]) -> str:
-    dt = get_photo_date(str(photos[0]))
+def folder_name_for_group(photos: List[Path], dates_override: Optional[Dict[str, str]] = None) -> str:
+    dt = get_photo_date(str(photos[0]), dates_override)
     return dt.strftime("%Hh%M_%d-%m-%Y")
 
 

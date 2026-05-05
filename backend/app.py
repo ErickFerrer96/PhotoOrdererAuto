@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import json
 import os
 import shutil
 import threading
@@ -80,6 +81,13 @@ def upload() -> Response:
         shutil.rmtree(TEMP_BASE / session_id, ignore_errors=True)
         return jsonify({"error": "No valid files"}), 400  # type: ignore[return-value]
 
+    try:
+        dates = json.loads(request.form.get("dates", "{}"))
+    except (json.JSONDecodeError, ValueError):
+        dates = {}
+    if dates:
+        (input_dir / "dates.json").write_text(json.dumps(dates))
+
     with _jobs_lock:
         _jobs[session_id] = {
             "status": "uploaded",
@@ -102,6 +110,14 @@ def _run_job(session_id: str, mode: str) -> None:
         mode=mode,
     )
 
+    dates_file = input_dir / "dates.json"
+    dates_override: Dict[str, str] = {}
+    if dates_file.exists():
+        try:
+            dates_override = json.loads(dates_file.read_text())
+        except Exception:
+            pass
+
     try:
         photos = collect_photos(input_dir)
 
@@ -110,22 +126,22 @@ def _run_job(session_id: str, mode: str) -> None:
 
         if mode == "watermark":
             for i, photo in enumerate(photos):
-                add_watermark(str(photo), str(output_dir / _out_name(photo)), config)
+                add_watermark(str(photo), str(output_dir / _out_name(photo)), config, dates_override)
                 with _jobs_lock:
                     _jobs[session_id]["done"] = i + 1
 
         else:
-            groups = group_photos_by_time(photos, config)
+            groups = group_photos_by_time(photos, config, dates_override)
             done = 0
             for group in groups:
-                group_dir = output_dir / folder_name_for_group(group)
+                group_dir = output_dir / folder_name_for_group(group, dates_override)
                 group_dir.mkdir(parents=True, exist_ok=True)
                 for photo in group:
                     out_path = group_dir / _out_name(photo)
                     if mode == "group":
                         shutil.copy2(str(photo), str(out_path))
                     else:
-                        add_watermark(str(photo), str(out_path), config)
+                        add_watermark(str(photo), str(out_path), config, dates_override)
                     done += 1
                     with _jobs_lock:
                         _jobs[session_id]["done"] = done
