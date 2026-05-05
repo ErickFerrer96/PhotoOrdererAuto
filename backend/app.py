@@ -18,7 +18,7 @@ pillow_heif.register_heif_opener()
 from flask import Flask, Response, jsonify, render_template, request, send_file  # type: ignore[import-untyped]
 
 from config import Config
-from functions import add_watermark, collect_photos, folder_name_for_group, group_photos_by_time
+from functions import _out_name, add_watermark, collect_photos, folder_name_for_group, group_photos_by_time
 
 _ROOT = Path(__file__).resolve().parent.parent
 
@@ -30,9 +30,6 @@ TEMP_BASE.mkdir(exist_ok=True)
 _jobs: Dict[str, Dict[str, Any]] = {}
 _jobs_lock = threading.Lock()
 
-
-def _out_name(photo: Path) -> str:
-    return photo.stem + ".jpg" if photo.suffix.lower() == ".heic" else photo.name
 
 
 def require_auth(f):  # type: ignore[no-untyped-def]
@@ -110,13 +107,11 @@ def _run_job(session_id: str, mode: str) -> None:
         mode=mode,
     )
 
-    dates_file = input_dir / "dates.json"
     dates_override: Dict[str, str] = {}
-    if dates_file.exists():
-        try:
-            dates_override = json.loads(dates_file.read_text())
-        except Exception:
-            pass
+    try:
+        dates_override = json.loads((input_dir / "dates.json").read_text())
+    except (FileNotFoundError, json.JSONDecodeError, ValueError):
+        pass
 
     try:
         photos = collect_photos(input_dir)
@@ -195,7 +190,7 @@ def download(session_id: str) -> Response:
     output_dir = TEMP_BASE / session_id / "output"
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for f in sorted(output_dir.rglob("*")):
+        for f in output_dir.rglob("*"):
             if f.is_file():
                 zf.write(f, f.relative_to(output_dir))
     buf.seek(0)

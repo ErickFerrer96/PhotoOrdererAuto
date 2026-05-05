@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Tuple
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps  # type: ignore[import-untyped]
 
-from config import Config, PHOTO_PATTERNS
+from config import Config
 
 
 # ── Date extraction ────────────────────────────────────────────────────────────
@@ -39,6 +39,16 @@ def _parse_exif_date(value: str) -> Optional[datetime]:
         return None
 
 
+def _first_exif_date(exif_data: dict) -> Optional[datetime]:
+    for tag_id in _EXIF_DATE_TAGS:
+        value = exif_data.get(tag_id)
+        if value:
+            dt = _parse_exif_date(str(value))
+            if dt:
+                return dt
+    return None
+
+
 def _date_from_filename(image_path: str) -> Optional[datetime]:
     stem = Path(image_path).stem
     for pattern, fmt in _FILENAME_DATE_PATTERNS:
@@ -63,34 +73,22 @@ def get_photo_date(image_path: str, dates_override: Optional[Dict[str, str]] = N
 
     try:
         img = Image.open(image_path)
-
-        # Modern getexif() API
         try:
-            exif = img.getexif()
-            for tag_id in _EXIF_DATE_TAGS:
-                value = exif.get(tag_id)
-                if value:
-                    dt = _parse_exif_date(str(value))
-                    if dt:
-                        return dt
+            dt = _first_exif_date(img.getexif())
+            if dt:
+                return dt
         except Exception:
             pass
-
-        # Legacy _getexif() API
         try:
             legacy = getattr(img, "_getexif", None)
             if legacy:
                 exif_data = legacy()
                 if exif_data:
-                    for tag_id in _EXIF_DATE_TAGS:
-                        value = exif_data.get(tag_id)
-                        if value:
-                            dt = _parse_exif_date(str(value))
-                            if dt:
-                                return dt
+                    dt = _first_exif_date(exif_data)
+                    if dt:
+                        return dt
         except Exception:
             pass
-
     except Exception:
         pass
 
@@ -296,12 +294,11 @@ def folder_name_for_group(photos: List[Path], dates_override: Optional[Dict[str,
 
 # ── Batch processing ───────────────────────────────────────────────────────────
 
+_PHOTO_EXTS = frozenset({".jpg", ".jpeg", ".png", ".heic"})
+
+
 def collect_photos(directory: Path) -> List[Path]:
-    seen: set[Path] = set()
-    for p in PHOTO_PATTERNS:
-        for photo in directory.glob(p):
-            seen.add(photo.resolve())
-    return list(seen)
+    return [p for p in directory.iterdir() if p.is_file() and p.suffix.lower() in _PHOTO_EXTS]
 
 
 def _out_name(photo: Path) -> str:

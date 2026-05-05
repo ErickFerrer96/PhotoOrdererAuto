@@ -346,6 +346,7 @@
 
     function resetResults() {
       clearInterval(pollTimer);
+      pollTimer = null;
       currentSession = null;
       progressWrap.classList.add("hidden");
       downloadBtn.classList.add("hidden");
