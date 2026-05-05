@@ -18,4 +18,4 @@ EXPOSE 5000
 
 ENV PYTHONUNBUFFERED=1
 
-CMD ["python", "app.py"]
+CMD ["python", "backend/app.py"]

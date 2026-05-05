@@ -14,14 +14,16 @@ import pillow_heif  # type: ignore[import-untyped]
 
 pillow_heif.register_heif_opener()
 
-from flask import Flask, Response, jsonify, render_template, request, send_file # type: ignore[import-untyped]
+from flask import Flask, Response, jsonify, render_template, request, send_file  # type: ignore[import-untyped]
 
 from config import Config
 from functions import add_watermark, collect_photos, folder_name_for_group, group_photos_by_time
 
-app = Flask(__name__)
+_ROOT = Path(__file__).resolve().parent.parent
 
-TEMP_BASE = Path("tmp")
+app = Flask(__name__, template_folder=str(_ROOT / "frontend"))
+
+TEMP_BASE = _ROOT / "tmp"
 TEMP_BASE.mkdir(exist_ok=True)
 
 _jobs: Dict[str, Dict[str, Any]] = {}
