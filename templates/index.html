@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PhotoOrderer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f11;
+      --surface: #1a1a1e;
+      --border: #2e2e34;
+      --accent: #6c63ff;
+      --accent-hover: #7d75ff;
+      --text: #e8e8ec;
+      --muted: #888894;
+      --success: #4caf7d;
+      --danger: #e05252;
+      --radius: 12px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 560px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 40px;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 4px;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 0.875rem;
+      margin-bottom: 32px;
+    }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 40px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      position: relative;
+    }
+
+    .drop-zone:hover,
+    .drop-zone.hover {
+      border-color: var(--accent);
+      background: rgba(108, 99, 255, 0.05);
+    }
+
+    .drop-zone.has-files {
+      border-style: solid;
+      border-color: var(--accent);
+    }
+
+    .drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .drop-icon {
+      font-size: 2rem;
+      margin-bottom: 10px;
+      line-height: 1;
+    }
+
+    .drop-label {
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    .drop-label strong {
+      color: var(--text);
+    }
+
+    .file-count {
+      margin-top: 8px;
+      font-size: 0.8rem;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* Mode selector */
+    .section-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin: 24px 0 10px;
+    }
+
+    .mode-buttons {
+      display: flex;
+      gap: 8px;
+    }
+
+    .mode-btn {
+      flex: 1;
+      padding: 10px 8px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+    }
+
+    .mode-btn:hover {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+
+    .mode-btn.active {
+      background: rgba(108, 99, 255, 0.15);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .mode-desc {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 8px;
+      min-height: 1.2em;
+    }
+
+    /* Process button */
+    .process-btn {
+      width: 100%;
+      margin-top: 24px;
+      padding: 13px;
+      background: var(--accent);
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+    }
+
+    .process-btn:hover:not(:disabled) { background: var(--accent-hover); }
+    .process-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* Progress */
+    .progress-wrap {
+      margin-top: 20px;
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .progress-track {
+      height: 6px;
+      background: var(--bg);
+      border-radius: 99px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 99px;
+      transition: width 0.3s ease;
+      width: 0%;
+    }
+
+    /* Download */
+    .download-btn {
+      display: block;
+      width: 100%;
+      margin-top: 16px;
+      padding: 13px;
+      background: var(--success);
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      text-decoration: none;
+      transition: opacity 0.15s;
+    }
+
+    .download-btn:hover { opacity: 0.88; }
+
+    /* Error */
+    .error-box {
+      margin-top: 16px;
+      padding: 12px 14px;
+      background: rgba(224, 82, 82, 0.1);
+      border: 1px solid rgba(224, 82, 82, 0.35);
+      border-radius: 8px;
+      color: var(--danger);
+      font-size: 0.85rem;
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>PhotoOrderer</h1>
+    <p class="subtitle">Add watermarks, group by time, or both — then download a ZIP.</p>
+
+    <!-- Drop zone -->
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" multiple accept=".jpg,.jpeg,.png,.heic,.JPG,.JPEG,.PNG,.HEIC">
+      <div class="drop-icon">&#128247;</div>
+      <p class="drop-label"><strong>Drop photos here</strong> or click to select</p>
+      <p class="file-count hidden" id="fileCount"></p>
+    </div>
+
+    <!-- Mode -->
+    <p class="section-label">Mode</p>
+    <div class="mode-buttons">
+      <button class="mode-btn" data-mode="watermark">Watermark</button>
+      <button class="mode-btn" data-mode="group">Group</button>
+      <button class="mode-btn active" data-mode="both">Both</button>
+    </div>
+    <p class="mode-desc" id="modeDesc">Add date watermarks and group photos into time-based folders.</p>
+
+    <!-- Process -->
+    <button class="process-btn" id="processBtn" disabled>Process Photos</button>
+
+    <!-- Progress -->
+    <div class="progress-wrap hidden" id="progressWrap">
+      <div class="progress-header">
+        <span id="progressLabel">Processing…</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+
+    <!-- Download -->
+    <a class="download-btn hidden" id="downloadBtn" href="#">&#8595; Download ZIP</a>
+
+    <!-- Error -->
+    <div class="error-box hidden" id="errorBox"></div>
+  </div>
+
+  <script>
+    const MODE_DESCS = {
+      watermark: "Stamp each photo with its date and time.",
+      group: "Sort photos into time-based folders (no watermark).",
+      both: "Add date watermarks and group photos into time-based folders.",
+    };
+
+    let selectedFiles = [];
+    let selectedMode = "both";
+    let pollTimer = null;
+    let currentSession = null;
+
+    const dropZone   = document.getElementById("dropZone");
+    const fileInput  = document.getElementById("fileInput");
+    const fileCount  = document.getElementById("fileCount");
+    const modeDesc   = document.getElementById("modeDesc");
+    const processBtn = document.getElementById("processBtn");
+    const progressWrap = document.getElementById("progressWrap");
+    const progressLabel = document.getElementById("progressLabel");
+    const progressPct   = document.getElementById("progressPct");
+    const progressFill  = document.getElementById("progressFill");
+    const downloadBtn   = document.getElementById("downloadBtn");
+    const errorBox      = document.getElementById("errorBox");
+
+    // ── File selection ──────────────────────────────────────────────────────────
+
+    function setFiles(files) {
+      selectedFiles = Array.from(files);
+      if (selectedFiles.length > 0) {
+        fileCount.textContent = `${selectedFiles.length} photo${selectedFiles.length === 1 ? "" : "s"} selected`;
+        fileCount.classList.remove("hidden");
+        dropZone.classList.add("has-files");
+        processBtn.disabled = false;
+      } else {
+        fileCount.classList.add("hidden");
+        dropZone.classList.remove("has-files");
+        processBtn.disabled = true;
+      }
+      resetResults();
+    }
+
+    fileInput.addEventListener("change", () => setFiles(fileInput.files));
+
+    dropZone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropZone.classList.add("hover");
+    });
+    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("hover"));
+    dropZone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropZone.classList.remove("hover");
+      if (e.dataTransfer.files.length) setFiles(e.dataTransfer.files);
+    });
+
+    // ── Mode buttons ────────────────────────────────────────────────────────────
+
+    document.querySelectorAll(".mode-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".mode-btn").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        selectedMode = btn.dataset.mode;
+        modeDesc.textContent = MODE_DESCS[selectedMode];
+      });
+    });
+
+    // ── Reset helpers ───────────────────────────────────────────────────────────
+
+    function resetResults() {
+      clearInterval(pollTimer);
+      currentSession = null;
+      progressWrap.classList.add("hidden");
+      downloadBtn.classList.add("hidden");
+      errorBox.classList.add("hidden");
+      setProgress(0, 0);
+    }
+
+    function showError(msg) {
+      errorBox.textContent = msg;
+      errorBox.classList.remove("hidden");
+    }
+
+    function setProgress(done, total) {
+      const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+      progressFill.style.width = pct + "%";
+      progressPct.textContent = pct + "%";
+      progressLabel.textContent = total > 0
+        ? `Processing… (${done} / ${total})`
+        : "Processing…";
+    }
+
+    // ── Process ─────────────────────────────────────────────────────────────────
+
+    processBtn.addEventListener("click", async () => {
+      if (!selectedFiles.length) return;
+      resetResults();
+      processBtn.disabled = true;
+      errorBox.classList.add("hidden");
+
+      // 1. Upload
+      const form = new FormData();
+      selectedFiles.forEach((f) => form.append("photos", f, f.name));
+
+      let uploadRes;
+      try {
+        const r = await fetch("/upload", { method: "POST", body: form });
+        uploadRes = await r.json();
+        if (!r.ok) throw new Error(uploadRes.error || "Upload failed");
+      } catch (e) {
+        showError("Upload error: " + e.message);
+        processBtn.disabled = false;
+        return;
+      }
+
+      currentSession = uploadRes.session_id;
+
+      // 2. Start processing
+      try {
+        const r = await fetch("/process", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: currentSession, mode: selectedMode }),
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || "Process failed");
+      } catch (e) {
+        showError("Process error: " + e.message);
+        processBtn.disabled = false;
+        return;
+      }
+
+      // 3. Poll status
+      progressWrap.classList.remove("hidden");
+      pollTimer = setInterval(async () => {
+        try {
+          const r = await fetch("/status/" + currentSession);
+          const job = await r.json();
+
+          setProgress(job.done, job.total);
+
+          if (job.status === "done") {
+            clearInterval(pollTimer);
+            setProgress(job.total, job.total);
+            progressLabel.textContent = "Done!";
+            downloadBtn.href = "/download/" + currentSession;
+            downloadBtn.classList.remove("hidden");
+            processBtn.disabled = false;
+          } else if (job.status === "error") {
+            clearInterval(pollTimer);
+            showError("Error: " + (job.error || "Unknown error"));
+            processBtn.disabled = false;
+          }
+        } catch {
+          // transient network error — keep polling
+        }
+      }, 800);
+    });
+  </script>
+</body>
+</html>

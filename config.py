@@ -23,7 +23,7 @@ class Config:
     quality: int = 95
     use_shadow: bool = False
     # Mode: "watermark", "group", "both"
-    mode: str = "group"
+    mode: str = "both"
     # Split into a new group when the gap between consecutive photos exceeds this value
     max_gap_minutes: float = 10.0
 

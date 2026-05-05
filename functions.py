@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFont, ImageOps # type: ignore[import-untyped]
 from PIL.ExifTags import TAGS
 
 from config import Config, PHOTO_PATTERNS

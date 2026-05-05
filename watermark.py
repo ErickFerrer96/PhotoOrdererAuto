@@ -10,7 +10,7 @@ from functions import process_photos, process_groups
 
 def main() -> None:
     print("=" * 50)
-    print("Automatic Watermarking System")
+    print("Automatic Watermarking and Order System")
     print("=" * 50)
     print()
 
