@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PhotoOrderer</title>
-  <script src="https://cdn.jsdelivr.net/npm/exifr@7/dist/lite.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exifr@7/dist/full.umd.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -380,15 +380,19 @@
       processBtn.disabled = true;
       errorBox.classList.add("hidden");
 
-      // Read EXIF dates client-side — mobile browsers strip EXIF during upload
+      // Always send a date for every file so the backend never falls back to
+      // server mtime. Base = file.lastModified (the file's date on the user's
+      // machine, almost always the real capture date). Override with EXIF when
+      // exifr can read it — more precise but not always available.
       const dates = {};
       await Promise.all(selectedFiles.map(async (f) => {
+        dates[f.name] = toExifDate(new Date(f.lastModified));
         try {
           const result = await exifr.parse(f, ["DateTimeOriginal"]);
-          if (result && result.DateTimeOriginal) {
+          if (result?.DateTimeOriginal instanceof Date) {
             dates[f.name] = toExifDate(result.DateTimeOriginal);
           }
-        } catch { /* no EXIF — backend will fall back to filename/mtime */ }
+        } catch { /* no EXIF — lastModified stays */ }
       }));
 
       // 1. Upload
