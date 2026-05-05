@@ -1,39 +1,97 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps # type: ignore[import-untyped]
-from PIL.ExifTags import TAGS
+from PIL import Image, ImageDraw, ImageFont, ImageOps  # type: ignore[import-untyped]
 
 from config import Config, PHOTO_PATTERNS
 
 
 # ── Date extraction ────────────────────────────────────────────────────────────
 
+# Tag IDs in priority order: DateTimeOriginal, DateTimeDigitized, DateTime
+_EXIF_DATE_TAGS = (36867, 36868, 306)
+_EXIF_DATE_FMT = "%Y:%m:%d %H:%M:%S"
+
+# (compiled pattern, strptime format for joined groups)
+_FILENAME_DATE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
+    # IMG_20240115_143045  PXL_20240115_143045  VID_20240115_143045
+    (re.compile(r"(?:IMG|PXL|VID|DSC)_(\d{8})_(\d{6})"), "%Y%m%d%H%M%S"),
+    # Screenshot_2024-01-15-14-30-45  or  Screenshot_2024-01-15_14-30-45
+    (re.compile(r"Screenshot_(\d{4})-(\d{2})-(\d{2})[_-](\d{2})[_-](\d{2})[_-](\d{2})"), "%Y%m%d%H%M%S"),
+    # Screenshot_2024-01-15  (date only)
+    (re.compile(r"Screenshot_(\d{4}-\d{2}-\d{2})"), "%Y-%m-%d"),
+    # Generic YYYYMMDD_HHMMSS
+    (re.compile(r"(\d{8})_(\d{6})"), "%Y%m%d%H%M%S"),
+]
+
+
+def _parse_exif_date(value: str) -> Optional[datetime]:
+    try:
+        return datetime.strptime(value.strip(), _EXIF_DATE_FMT)
+    except ValueError:
+        return None
+
+
+def _date_from_filename(image_path: str) -> Optional[datetime]:
+    stem = Path(image_path).stem
+    for pattern, fmt in _FILENAME_DATE_PATTERNS:
+        m = pattern.search(stem)
+        if m:
+            try:
+                return datetime.strptime("".join(m.groups()), fmt)
+            except ValueError:
+                continue
+    return None
+
+
 def get_photo_date(image_path: str) -> datetime:
     try:
         img = Image.open(image_path)
-        exif = getattr(img, "_getexif", None)
-        if exif:
-            exif_data = exif()
-            if exif_data:
-                for tag_id, value in exif_data.items():
-                    tag = TAGS.get(tag_id, tag_id)
-                    if tag in ("DateTimeOriginal", "DateTime"):
-                        try:
-                            return datetime.strptime(str(value), "%Y:%m:%d %H:%M:%S")
-                        except:
-                            pass
-    except:
+
+        # Modern getexif() API
+        try:
+            exif = img.getexif()
+            for tag_id in _EXIF_DATE_TAGS:
+                value = exif.get(tag_id)
+                if value:
+                    dt = _parse_exif_date(str(value))
+                    if dt:
+                        return dt
+        except Exception:
+            pass
+
+        # Legacy _getexif() API
+        try:
+            legacy = getattr(img, "_getexif", None)
+            if legacy:
+                exif_data = legacy()
+                if exif_data:
+                    for tag_id in _EXIF_DATE_TAGS:
+                        value = exif_data.get(tag_id)
+                        if value:
+                            dt = _parse_exif_date(str(value))
+                            if dt:
+                                return dt
+        except Exception:
+            pass
+
+    except Exception:
         pass
 
-    ts = os.path.getmtime(image_path)
-    return datetime.fromtimestamp(ts)
+    # Filename patterns (common phone naming conventions)
+    dt = _date_from_filename(image_path)
+    if dt:
+        return dt
+
+    # Last resort: file mtime
+    return datetime.fromtimestamp(os.path.getmtime(image_path))
 
 
 # ── Font helpers ───────────────────────────────────────────────────────────────
