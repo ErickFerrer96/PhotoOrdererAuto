@@ -241,9 +241,9 @@
 
     <!-- Drop zone -->
     <div class="drop-zone" id="dropZone">
-      <input type="file" id="fileInput" multiple accept=".jpg,.jpeg,.png,.heic,.JPG,.JPEG,.PNG,.HEIC">
+      <input type="file" id="fileInput" multiple accept=".jpg,.jpeg,.png,.heic,.JPG,.JPEG,.PNG,.HEIC,.zip,.ZIP">
       <div class="drop-icon">&#128247;</div>
-      <p class="drop-label"><strong>Drop photos here</strong> or click to select</p>
+      <p class="drop-label"><strong>Drop photos or a ZIP here</strong> or click to select</p>
       <p class="file-count hidden" id="fileCount"></p>
     </div>
 
@@ -289,6 +289,10 @@
     let pollTimer = null;
     let currentSession = null;
 
+    function hasZip(files) {
+      return files.some(f => f.name.toLowerCase().endsWith(".zip"));
+    }
+
     const dropZone   = document.getElementById("dropZone");
     const fileInput  = document.getElementById("fileInput");
     const fileCount  = document.getElementById("fileCount");
@@ -306,7 +310,10 @@
     function setFiles(files) {
       selectedFiles = Array.from(files);
       if (selectedFiles.length > 0) {
-        fileCount.textContent = `${selectedFiles.length} photo${selectedFiles.length === 1 ? "" : "s"} selected`;
+        const zip = hasZip(selectedFiles);
+        fileCount.textContent = zip
+          ? "ZIP selected"
+          : `${selectedFiles.length} photo${selectedFiles.length === 1 ? "" : "s"} selected`;
         fileCount.classList.remove("hidden");
         dropZone.classList.add("has-files");
         processBtn.disabled = false;
@@ -381,20 +388,21 @@
       processBtn.disabled = true;
       errorBox.classList.add("hidden");
 
-      // Always send a date for every file so the backend never falls back to
-      // server mtime. Base = file.lastModified (the file's date on the user's
-      // machine, almost always the real capture date). Override with EXIF when
-      // exifr can read it — more precise but not always available.
+      // For individual photos: read EXIF client-side so the backend never falls
+      // back to server mtime. For ZIPs: skip — the backend reads EXIF directly
+      // from extracted files.
       const dates = {};
-      await Promise.all(selectedFiles.map(async (f) => {
-        dates[f.name] = toExifDate(new Date(f.lastModified));
-        try {
-          const result = await exifr.parse(f, ["DateTimeOriginal"]);
-          if (result?.DateTimeOriginal instanceof Date) {
-            dates[f.name] = toExifDate(result.DateTimeOriginal);
-          }
-        } catch { /* no EXIF — lastModified stays */ }
-      }));
+      if (!hasZip(selectedFiles)) {
+        await Promise.all(selectedFiles.map(async (f) => {
+          dates[f.name] = toExifDate(new Date(f.lastModified));
+          try {
+            const result = await exifr.parse(f, ["DateTimeOriginal"]);
+            if (result?.DateTimeOriginal instanceof Date) {
+              dates[f.name] = toExifDate(result.DateTimeOriginal);
+            }
+          } catch { /* no EXIF — lastModified stays */ }
+        }));
+      }
 
       // 1. Upload
       const form = new FormData();

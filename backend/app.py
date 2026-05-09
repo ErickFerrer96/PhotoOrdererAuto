@@ -18,7 +18,14 @@ pillow_heif.register_heif_opener()
 from flask import Flask, Response, jsonify, render_template, request, send_file  # type: ignore[import-untyped]
 
 from config import Config
-from functions import _out_name, add_watermark, collect_photos, folder_name_for_group, group_photos_by_time
+from functions import (
+    _PHOTO_EXTS,
+    _out_name,
+    add_watermark,
+    collect_photos_recursive,
+    folder_name_for_group,
+    group_photos_by_time,
+)
 
 _ROOT = Path(__file__).resolve().parent.parent
 
@@ -69,7 +76,29 @@ def upload() -> Response:
 
     saved = 0
     for f in files:
-        if f.filename:
+        if not f.filename:
+            continue
+        if f.filename.lower().endswith(".zip"):
+            buf = io.BytesIO(f.read())
+            try:
+                with zipfile.ZipFile(buf) as zf:
+                    for member in zf.infolist():
+                        if member.is_dir():
+                            continue
+                        member_path = Path(member.filename)
+                        if any(p.startswith("__MACOSX") or p.startswith(".") for p in member_path.parts):
+                            continue
+                        if member_path.suffix.lower() not in _PHOTO_EXTS:
+                            continue
+                        dest = (input_dir / member.filename).resolve()
+                        if not str(dest).startswith(str(input_dir.resolve())):
+                            continue
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        dest.write_bytes(zf.read(member))
+                        saved += 1
+            except zipfile.BadZipFile:
+                pass
+        elif Path(f.filename).suffix.lower() in _PHOTO_EXTS:
             dest = input_dir / Path(f.filename).name
             f.save(dest)
             saved += 1
@@ -114,14 +143,17 @@ def _run_job(session_id: str, mode: str) -> None:
         pass
 
     try:
-        photos = collect_photos(input_dir)
+        photos = collect_photos_recursive(input_dir)
 
         with _jobs_lock:
             _jobs[session_id].update({"status": "processing", "total": len(photos)})
 
         if mode == "watermark":
             for i, photo in enumerate(photos):
-                add_watermark(str(photo), str(output_dir / _out_name(photo)), config, dates_override)
+                rel = photo.relative_to(input_dir)
+                out_path = output_dir / rel.parent / _out_name(photo)
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                add_watermark(str(photo), str(out_path), config, dates_override)
                 with _jobs_lock:
                     _jobs[session_id]["done"] = i + 1
 

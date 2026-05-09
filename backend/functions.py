@@ -301,6 +301,10 @@ def collect_photos(directory: Path) -> List[Path]:
     return [p for p in directory.iterdir() if p.is_file() and p.suffix.lower() in _PHOTO_EXTS]
 
 
+def collect_photos_recursive(directory: Path) -> List[Path]:
+    return sorted(p for p in directory.rglob("*") if p.is_file() and p.suffix.lower() in _PHOTO_EXTS)
+
+
 def _out_name(photo: Path) -> str:
     return photo.stem + ".jpg" if photo.suffix.lower() == ".heic" else photo.name
 
